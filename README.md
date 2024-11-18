@@ -1,2 +1,3 @@
-# BSQLI_Automation
-BSQLI_Automation
+# simple BSQLI_Automation in just familiar headers
+
+
