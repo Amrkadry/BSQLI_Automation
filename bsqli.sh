@@ -8,7 +8,7 @@ usage() {
   exit 1
 }
 
-# Checking if the correct number of arguments is provided
+# Parse command-line arguments
 while getopts "l:p:" opt; do
   case $opt in
     l) subdomain_list="$OPTARG" ;;
@@ -17,6 +17,7 @@ while getopts "l:p:" opt; do
   esac
 done
 
+# Check if required arguments are provided
 if [[ -z "$subdomain_list" || -z "$payload" ]]; then
   usage
 fi
@@ -26,20 +27,23 @@ headers=("User-Agent" "Referer" "X-Forwarded-For" "X-Client-IP" "X-Real-IP")
 
 # Function to check each subdomain with the provided payload
 check_sqli() {
-  local domain=$1
+  local domain="$1"
   for header in "${headers[@]}"; do
     echo "Checking $domain with $header header..."
-    start_time=$(date +%s)
+    start_time=$(date +%s.%N)
     
     # Perform the curl request with the injection in the specified header
-    curl -s -o /dev/null -H "$header: $payload" "$domain"
+    if ! curl -s -o /dev/null -H "$header: $payload" "$domain"; then
+      echo "[ERROR] Failed to perform curl request to $domain"
+      continue
+    fi
 
     # Measure the response time
-    end_time=$(date +%s)
-    response_time=$((end_time - start_time))
+    end_time=$(date +%s.%N)
+    response_time=$(echo "$end_time - $start_time" | bc)
 
     # If response time is 5 seconds or more, log the potential vulnerability
-    if [ "$response_time" -ge 5 ]; then
+    if (( $(echo "$response_time >= 5" | bc -l) )); then
       echo "[VULNERABLE] $domain is vulnerable to SQLi on $header header!"
     fi
   done
@@ -47,5 +51,7 @@ check_sqli() {
 
 # Loop through each subdomain in the list
 while IFS= read -r domain; do
-  check_sqli "$domain"
+  if [[ -n "$domain" ]]; then
+    check_sqli "$domain"
+  fi
 done < "$subdomain_list"
